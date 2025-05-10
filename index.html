@@ -1,3 +1,4 @@
+
 <html>
 <head>
   <title>JoyPass 4.63</title>
@@ -37,7 +38,7 @@
       border: none;
       padding: 10px; 
       overflow-y: scroll;
-      background-color: #f3f1f1;
+      background-color: #f9f9f9;
       color: #000;
       text-align: left;
       white-space: pre-wrap;
@@ -82,15 +83,18 @@
   <div class="button-bar">
     <div class="status" id="statusText">Not Connected</div>
     <div class="button-group">
-      <button id="connectBtn">Connect Joypass</button>
-      <button id="clearBtn">Clear Console</button>
+      <button id="connectBtn">Connect</button>
+      <button id="restartBtn">Restart</button>
+      <button id="clearBtn">Clear</button>
     </div>
   </div>
   
   <script>
     let port;
     let reader;
+    let writer;
     let output = document.getElementById('output');
+    
     document.getElementById('connectBtn').addEventListener('click', async () => {
       try {
         port = await navigator.serial.requestPort();
@@ -98,6 +102,7 @@
         const decoder = new TextDecoderStream();
         port.readable.pipeTo(decoder.writable);
         reader = decoder.readable.getReader();
+        writer = port.writable.getWriter();
         document.getElementById('statusText').textContent = "Connected";
         readLoop();
       } catch (err) {
@@ -105,9 +110,50 @@
         document.getElementById('statusText').textContent = "Connection Failed";
       }
     });
+    
+    document.getElementById('restartBtn').addEventListener('click', async () => {
+      if (!port || !writer) {
+        output.textContent += "Not connected to JoyPass device.\n";
+        return;
+      }
+      
+      try {
+        document.getElementById('statusText').textContent = "Restarting...";
+        output.textContent += "Restarting JoyPass device...\n";
+        
+        // Send restart command to Arduino
+        const restartCmd = new Uint8Array([0x52, 0x53, 0x54]); // "RST" in ASCII
+        await writer.write(restartCmd);
+        
+        // Close and reopen connection
+        await reader.cancel();
+        await writer.close();
+        
+        // Short delay to allow device to reset
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Reopen connection
+        await port.close();
+        await port.open({ baudRate: 9600 });
+        const decoder = new TextDecoderStream();
+        port.readable.pipeTo(decoder.writable);
+        reader = decoder.readable.getReader();
+        writer = port.writable.getWriter();
+        
+        document.getElementById('statusText').textContent = "Connected";
+        output.textContent += "JoyPass restarted successfully.\n";
+        readLoop();
+      } catch (err) {
+        console.error('Restart Error:', err);
+        document.getElementById('statusText').textContent = "Restart Failed";
+        output.textContent += "Failed to restart JoyPass: " + err.message + "\n";
+      }
+    });
+    
     document.getElementById('clearBtn').addEventListener('click', () => {
       output.textContent = '';
     });
+    
     async function readLoop() {
       while (true) {
         const { value, done } = await reader.read();
