@@ -15,6 +15,7 @@
       flex-direction: column;
       height: 100vh;
       overflow: hidden;
+      position: relative;
     }
     header {
       padding: 10px 20px;
@@ -31,6 +32,7 @@
       flex: 1;
       padding: 0 20px;
       overflow: hidden;
+      position: relative;
     }
     #output { 
       width: 100%; 
@@ -69,6 +71,23 @@
       color: #000;
       border-radius: 0px;
     }
+    #notification {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 80px;
+      opacity: 0;
+      transition: opacity 0.5s;
+      pointer-events: none;
+      z-index: 100;
+    }
+    .checkmark {
+      color: #00cc00;
+    }
+    .xmark {
+      color: #cc0000;
+    }
   </style>
 </head>
 <body>
@@ -78,6 +97,7 @@
   
   <main>
     <div id="output"></div>
+    <div id="notification"></div>
   </main>
   
   <div class="button-bar">
@@ -94,6 +114,8 @@
     let reader;
     let writer;
     let output = document.getElementById('output');
+    let notification = document.getElementById('notification');
+    let notificationTimeout = null;
     
     document.getElementById('connectBtn').addEventListener('click', async () => {
       try {
@@ -154,6 +176,30 @@
       output.textContent = '';
     });
     
+    function showNotification(type) {
+      // Clear any existing timeout
+      if (notificationTimeout) {
+        clearTimeout(notificationTimeout);
+      }
+      
+      // Show appropriate symbol
+      if (type === 'check') {
+        notification.innerHTML = '✓';
+        notification.className = 'checkmark';
+      } else if (type === 'incorrect') {
+        notification.innerHTML = '✗';
+        notification.className = 'xmark';
+      }
+      
+      // Make visible
+      notification.style.opacity = '1';
+      
+      // Set timeout to hide
+      notificationTimeout = setTimeout(() => {
+        notification.style.opacity = '0';
+      }, 3000);
+    }
+    
     async function readLoop() {
       while (true) {
         const { value, done } = await reader.read();
@@ -163,6 +209,13 @@
         if (value) {
           output.textContent += value;
           output.scrollTop = output.scrollHeight;
+          
+          // Check for specific triggers
+          if (value.includes('check')) {
+            showNotification('check');
+          } else if (value.includes('incorrect')) {
+            showNotification('incorrect');
+          }
         }
       }
     }
